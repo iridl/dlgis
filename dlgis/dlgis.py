@@ -69,8 +69,7 @@ def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, s
 @click.option(
     "-t",
     "--tolerance",
-    default=0.0001,
-    help="Degree of shape simplification",
+    help="Degree of shape simplification, e.g. 0.0001, 0.001, 0.01, etc.",
     show_default=True,
 )
 @click.option(
@@ -111,7 +110,7 @@ def import_shapes(
     srid: Optional[str],
     encoding: Optional[str],
     drop_flag: bool,
-    tolerance: float,
+    tolerance: Optional[float],
     output_dir: Optional[pathlib.Path],
     host: str,
     port: int,
@@ -154,6 +153,7 @@ def import_shapes(
         primary_key_column = "gid"
         geom_column = "the_geom"
         coarse_geom_column = "coarse_geom"
+        
         shape_shp = shape.with_suffix(".shp")
         shape_prj = shape.with_suffix(".prj")
 
@@ -235,8 +235,7 @@ continuedataset:
 
             index_content += f"""\
 
-% to switch to coarse geom replace '({geom_column})' with '({coarse_geom_column})'
-/the_geom {{IRIDB ({table}) ({geom_column}) [ ({primary_key_column}) ]
+/the_geom {{IRIDB ({table}) ({geom_column if tolerance is None else coarse_geom_column}) [ ({primary_key_column}) ]
     open_column_by /long_name ({geom_column}) def }}defasvarsilentnoreuse
 
 /label {{IRIDB ({table}) ({label} as label) [ ({primary_key_column}) ]
@@ -266,15 +265,16 @@ continuedataset:
             f"'{escq(table)}' >> '{shape_sql}' 2>> '{shape_log}'"
         )
 
-        run_cmd(
-            f"grep AddGeometryColumn '{shape_sql}' | "
-            f"sed '1,$s/{geom_column}/{coarse_geom_column}/' "
-            f">> '{shape_sql}' 2>> '{shape_log}'"
-        )
+        if tolerance is not None:
+            run_cmd(
+                f"grep AddGeometryColumn '{shape_sql}' | "
+                f"sed '1,$s/{geom_column}/{coarse_geom_column}/' "
+                f">> '{shape_sql}' 2>> '{shape_log}'"
+            )
 
-        with open(shape_sql, "a") as f:
-            f.write(
-                f"""\
+            with open(shape_sql, "a") as f:
+                f.write(
+                    f"""\
 UPDATE "{escq(table, qs='"', es='""')}" set {coarse_geom_column} =
     ST_Multi(ST_SimplifyPreserveTopology({geom_column},{tolerance}));
 CREATE INDEX ON "{escq(table, qs='"', es='""')}" USING GIST ("{coarse_geom_column}");
@@ -287,7 +287,7 @@ SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
     FROM "{escq(table, qs='"', es='""')}"
     ORDER BY {primary_key_column};
 """
-            )
+                )
 
         if dbname is not None:
             if password is not None:
