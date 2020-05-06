@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import (Dict, Optional)
 import sys
 import io
 import os
@@ -107,15 +107,15 @@ def import_shapes(
     table: str,
     format: str,
     label: str,
-    descr: str,
-    srid: str,
-    encoding: str,
+    descr: Optional[str],
+    srid: Optional[str],
+    encoding: Optional[str],
     drop_flag: bool,
     tolerance: float,
-    output_dir: pathlib.Path,
+    output_dir: Optional[pathlib.Path],
     host: str,
     port: int,
-    dbname: str,
+    dbname: Optional[str],
     username: str,
     prompt_password: bool,
 ) -> int:
@@ -143,10 +143,8 @@ def import_shapes(
         if format not in ("shp"):
             raise Exception(f"Shape format {format!r} is not supported.")
 
-        apply_sql_flag = dbname is not None
-
         password = os.environ.get("PGPASSWORD")
-        if password is None and apply_sql_flag and prompt_password:
+        if password is None and dbname is not None and prompt_password:
             password = click.prompt("Password", hide_input=True)
 
         if table is None:
@@ -291,7 +289,7 @@ SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
 """
             )
 
-        if apply_sql_flag:
+        if dbname is not None:
             if password is not None:
                 os.environ["PGPASSWORD"] = password
 
