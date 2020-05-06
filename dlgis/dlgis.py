@@ -1,4 +1,4 @@
-from typing import (Dict, Optional)
+from typing import Dict, Optional
 import sys
 import io
 import os
@@ -24,11 +24,11 @@ def run_cmd(cmd: str, raise_excpt: bool = True) -> int:
     return ret
 
 
-def escq(s: str, qs: str = "'", es: str = "'") -> str:
+def escq(s: str, qs: str = "'", es: str = "\\'") -> str:
     return s.replace(qs, es)
 
 
-def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, str]:
+def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, Optional[str]]:
     with open(shapeprj_path, "r", encoding=encoding) as f:
         prj_txt = f.read()
     srs = osr.SpatialReference()
@@ -50,7 +50,7 @@ def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, s
     "--format",
     default="shp",
     type=click.Choice(["shp"], case_sensitive=False),
-    help="Shape format [supported formats: shp]",
+    help="Shape format",
     show_default=True,
 )
 @click.option(
@@ -69,8 +69,9 @@ def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, s
 @click.option(
     "-t",
     "--tolerance",
-    help="Degree of shape simplification, e.g. 0.0001, 0.001, 0.01, etc.",
+    help="Degree of shape simplification, e.g. 0.001, 0.01,...",
     show_default=True,
+    type=float,
 )
 @click.option(
     "-o",
@@ -95,15 +96,22 @@ def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, s
     flag_value=True,
     default=True,
     type=click.BOOL,
+    help="Prompt for database password",
 )
 @click.option(
-    "-w", "--no-password", "prompt_password", flag_value=False, type=click.BOOL
+    "-w",
+    "--no-password",
+    "prompt_password",
+    flag_value=False,
+    type=click.BOOL,
+    help="Do not prompt for database password",
 )
+@click.option("-v", "--verbose", is_flag=True, help="Verbose output")
 @click.version_option(version, "--version", show_default=False)
 @click.help_option("--help", show_default=False)
 def import_shapes(
     shape: pathlib.Path,
-    table: str,
+    table: Optional[str],
     format: str,
     label: str,
     descr: Optional[str],
@@ -117,6 +125,7 @@ def import_shapes(
     dbname: Optional[str],
     username: str,
     prompt_password: bool,
+    verbose: bool,
 ) -> int:
     """ Reads SHAPE files and produces SHAPE.sql, SHAPE.tex and SHAPE.log.
         SHAPE.sql contains sql commands to create or re-create (if `--overwrite` is on)
@@ -138,6 +147,7 @@ def import_shapes(
         -l "adm0_en||'/'||adm1_en||'/'||adm2_en" shapes/zmb_admbnda_adm2_2020
         \f
     """
+    shape_log = None
     try:
         if format not in ("shp"):
             raise Exception(f"Shape format {format!r} is not supported.")
@@ -153,7 +163,7 @@ def import_shapes(
         primary_key_column = "gid"
         geom_column = "the_geom"
         coarse_geom_column = "coarse_geom"
-        
+
         shape_shp = shape.with_suffix(".shp")
         shape_prj = shape.with_suffix(".prj")
 
@@ -172,7 +182,8 @@ def import_shapes(
         )
 
         logg(
-            f"Importing {str(shape)!r} into TABLE={table!r}, "
+            f"dlgis_import: importing {str(shape)!r} into "
+            f"{table!r}{'@'+dbname if dbname is not None else ''}, "
             f"SQL={str(shape_sql)!r}, TEX={str(shape_tex)!r}, "
             f"LOG={str(shape_log)!r}"
         )
@@ -192,10 +203,11 @@ def import_shapes(
             if srid is not None:
                 srid_from = srid
             else:
-                srid_from = esriprj2standards(shape_prj, encoding_from)["epsg"]
-
-            if srid_from is None:
-                raise Exception("Could not obtain srid.")
+                srid_optional = esriprj2standards(shape_prj, encoding_from)["epsg"]
+                if srid_optional is not None:
+                    srid_from = srid_optional
+                else:
+                    raise Exception("Could not obtain srid.")
 
             fields = [
                 (a.lower(), b, c, d)
@@ -302,10 +314,182 @@ SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
         exc_type, exc_value, exc_traceback = sys.exc_info()
         with io.StringIO() as f:
             traceback.print_exception(
-                exc_type, exc_value, exc_traceback, limit=5, file=f
+                exc_type, exc_value, exc_traceback, limit=10, file=f
             )
-            logg(f"Error: {e}\nAlso see {str(shape_log)!r}.")
-            logg(f"Error: {f.getvalue()}\nAlso see {str(shape_log)!r}.")
+            logg(f"dlgis_import error: {e if not verbose else f.getvalue()}")
+            if shape_log is not None:
+                logg(f"Also see {str(shape_log)!r}.")
+        return 1
+
+    return 0
+
+
+@click.command()
+@click.argument("shape", type=pathlib.Path)
+@click.option(
+    "-n",
+    "--table",
+    "table_or_query",
+    help="Table name or query [default: SHAPE's name]",
+)
+@click.option(
+    "-f",
+    "--format",
+    default="shp",
+    type=click.Choice(["shp"], case_sensitive=False),
+    help="Output shape format",
+    show_default=True,
+)
+@click.option(
+    "-s",
+    "--srid",
+    default="4326",
+    help="Output projection",
+    show_default=True,
+    hidden=True,
+)
+@click.option(
+    "-e",
+    "--encoding",
+    default="utf-8",
+    help="Output encoding",
+    show_default=True,
+    hidden=True,
+)
+@click.option(
+    "-O",
+    "--overwrite",
+    "overwrite_flag",
+    is_flag=True,
+    help="Overwrite output shape files if exist. DANGER!!!",
+)
+@click.option(
+    "-c",
+    "--coarse",
+    "coarse_flag",
+    is_flag=True,
+    help="Export coarse (simplified) version of the shape",
+)
+@click.option("-g", "--geom_column", help="Geometry column (overrides --coarse)")
+@click.option(
+    "-o",
+    "--output_dir",
+    type=pathlib.Path,
+    help="Output directory [default: SHAPE's directory]",
+)
+@click.option(
+    "-d", "--dbname", default="iridb", help="Database name", show_default=True
+)
+@click.option(
+    "-h", "--host", default="localhost", help="Database host", show_default=True
+)
+@click.option("-p", "--port", default="5432", help="Database host", show_default=True)
+@click.option(
+    "-U", "--username", default="postgres", help="Database user", show_default=True
+)
+@click.option(
+    "-W",
+    "--password",
+    "prompt_password",
+    flag_value=True,
+    default=True,
+    type=click.BOOL,
+    help="Prompt for database password",
+)
+@click.option(
+    "-w",
+    "--no-password",
+    "prompt_password",
+    flag_value=False,
+    type=click.BOOL,
+    help="Do not prompt for database password",
+)
+@click.option("-v", "--verbose", is_flag=True, help="Verbose output")
+@click.version_option(version, "--version", show_default=False)
+@click.help_option("--help", show_default=False)
+def export_shapes(
+    shape: pathlib.Path,
+    table_or_query: Optional[str],
+    format: str,
+    srid: str,
+    encoding: str,
+    overwrite_flag: bool,
+    coarse_flag: bool,
+    geom_column: Optional[str],
+    output_dir: Optional[pathlib.Path],
+    host: str,
+    port: int,
+    dbname: str,
+    username: str,
+    prompt_password: bool,
+    verbose: bool,
+) -> int:
+    """ Exports a set of shapes from a Postgres table in Data Library format into
+        SHAPE files. 
+
+        \b
+        SHAPE - Path to output shape files
+        
+        Example: dlgis_export -d iridb -w shapes/zmb_admbnda_adm2_2020
+        \f
+    """
+    shape_log = None
+    try:
+        if format not in ("shp"):
+            raise Exception(f"Shape format {format!r} is not supported.")
+
+        password = os.environ.get("PGPASSWORD")
+        if password is None and prompt_password:
+            password = click.prompt("Password", hide_input=True)
+
+        if table_or_query is None:
+            table_or_query = shape.stem
+
+        primary_key_column = "gid"
+
+        if geom_column is None:
+            geom_column = "coarse_geom" if coarse_flag else "the_geom"
+
+        if output_dir is None:
+            output_dir = shape.parent
+
+        output_path = output_dir / shape.stem
+
+        if not overwrite_flag and output_path.with_suffix(".shp").exists():
+            raise Exception(
+                f"Shape file {str(output_path.with_suffix('.shp'))!r} "
+                f"exists. Use --overwrite to overwrite it."
+            )
+
+        shape_log = output_path.with_suffix(".log")
+
+        version_and_time_stamp = (
+            f"Generated by dlgis_export version {version} on "
+            f"{datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}"
+        )
+
+        logg(
+            f"dlgis_export: exporting {table_or_query!r}@{dbname!r} to {str(output_path)!r}"
+        )
+
+        with open(shape_log, "w") as f:
+            f.write(f"{version_and_time_stamp}\n\n")
+
+        run_cmd(
+            f"pgsql2shp -f '{output_path}' -u '{escq(username)}' "
+            f"-g '{geom_column}' '{escq(dbname)}' '{escq(table_or_query)}' "
+            f">> '{shape_log}' 2>&1"
+        )
+
+    except Exception as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        with io.StringIO() as f:
+            traceback.print_exception(
+                exc_type, exc_value, exc_traceback, limit=10, file=f
+            )
+            logg(f"dlgis_export error: {e if not verbose else f.getvalue()}")
+            if shape_log is not None:
+                logg(f"Also see {str(shape_log)!r}.")
         return 1
 
     return 0

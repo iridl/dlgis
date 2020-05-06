@@ -30,8 +30,8 @@ setuptools.setup(
         "click == 7.1.*",
         "pyshp == 2.1.*",
         "gdal == 3.0.*",  # conda package
-        # requires shp2pgsql 2.5.*, psql, grep and sed  binaries 
+        # requires shp2pgsql 2.5.*, psql, grep and sed  binaries
     ],
-    scripts=["dlgis_import"],
+    scripts=["dlgis_import", "dlgis_export"],
     project_urls={"Bug Reports": "https://bitbucket.org/iridl/dlgis/issues"},
 )
