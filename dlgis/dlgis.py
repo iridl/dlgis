@@ -392,7 +392,7 @@ SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
 )
 @click.option("-p", "--port", default="5432", help="Database host", show_default=True)
 @click.option(
-    "-U", "--username", default="postgres", help="Database user", show_default=True
+    "-U", "--username", default="ingrid", help="Database user", show_default=True
 )
 @click.option(
     "-W",
@@ -485,9 +485,13 @@ def export_shapes(
         with open(shape_log, "w") as f:
             f.write(f"{version_and_time_stamp}\n\n")
 
+        if password is not None:
+            os.environ["PGPASSWORD"] = password
+
         run_cmd(
             f"pgsql2shp -f '{output_path}' -u '{escq(username)}' "
-            f"-g '{geom_column}' '{escq(dbname)}' "
+            f"-g '{geom_column}' -h '{escq(host)}' "
+            f"-p {port} '{escq(dbname)}' "
             f"'{escq(table_or_query)}' >> '{shape_log}' 2>&1"
         )
 
