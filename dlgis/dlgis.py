@@ -4,6 +4,8 @@ import io
 import os
 import traceback
 import pathlib
+import zipfile
+from glob import iglob
 from datetime import datetime
 from datetime import timezone
 import click
@@ -28,7 +30,9 @@ def escq(s: str, qs: str = "'", es: str = "\\'") -> str:
     return s.replace(qs, es)
 
 
-def esriprj2standards(shapeprj_path: pathlib.Path, encoding: str) -> Dict[str, Optional[str]]:
+def esriprj2standards(
+    shapeprj_path: pathlib.Path, encoding: str
+) -> Dict[str, Optional[str]]:
     with open(shapeprj_path, "r", encoding=encoding) as f:
         prj_txt = f.read()
     srs = osr.SpatialReference()
@@ -372,6 +376,9 @@ SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
 )
 @click.option("-g", "--geom_column", help="Geometry column (overrides --coarse)")
 @click.option(
+    "-Z", "--dont-zip", "dont_zip_flag", is_flag=True, help="Do not zip shape files"
+)
+@click.option(
     "-o",
     "--output_dir",
     type=pathlib.Path,
@@ -416,6 +423,7 @@ def export_shapes(
     overwrite_flag: bool,
     coarse_flag: bool,
     geom_column: Optional[str],
+    dont_zip_flag: bool,
     output_dir: Optional[pathlib.Path],
     host: str,
     port: int,
@@ -455,11 +463,13 @@ def export_shapes(
 
         output_path = output_dir / shape.stem
 
-        if not overwrite_flag and output_path.with_suffix(".shp").exists():
-            raise Exception(
-                f"Shape file {str(output_path.with_suffix('.shp'))!r} "
-                f"exists. Use --overwrite to overwrite it."
-            )
+        if not overwrite_flag:
+            for suffix in (".zip", ".shp", ".dbf", ".prj"):
+                if output_path.with_suffix(suffix).exists():
+                    raise Exception(
+                        f"File {str(output_path.with_suffix(suffix))!r} "
+                        f"exists. Use --overwrite to overwrite it."
+                    )
 
         shape_log = output_path.with_suffix(".log")
 
@@ -477,9 +487,20 @@ def export_shapes(
 
         run_cmd(
             f"pgsql2shp -f '{output_path}' -u '{escq(username)}' "
-            f"-g '{geom_column}' '{escq(dbname)}' '{escq(table_or_query)}' "
-            f">> '{shape_log}' 2>&1"
+            f"-g '{geom_column}' '{escq(dbname)}' "
+            f"'{escq(table_or_query)}' >> '{shape_log}' 2>&1"
         )
+
+        if not dont_zip_flag:
+            with zipfile.ZipFile(output_path.with_suffix(".zip"), "w") as zf:
+                for path in (
+                    pathlib.Path(x) for x in iglob(str(output_path.with_suffix(".*")))
+                ):
+                    if path.suffix not in (".zip", ".sql", ".tex"):
+                        zf.write(path, path.name)
+                        path.unlink()
+        else:
+            output_path.with_suffix(".zip").unlink()
 
     except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
