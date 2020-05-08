@@ -278,6 +278,8 @@ continuedataset:
     open_column_by /long_name (label) def }}defasvarsilentnoreuse
 
 :dataset
+
+label .{primary_key_column} name exch def
 \\end{{ingrid}}
 """
 
