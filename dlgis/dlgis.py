@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2020 IRI, Columbia University
-#  
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
 # the Software without restriction, including without limitation the rights to use,
@@ -78,8 +78,9 @@ def esriprj2standards(
     show_default=True,
 )
 @click.option(
-    "-l", "--label", default="gid", help="Label expression", show_default=True
+    "-G", "--grid_column", default="gid", help="Grid column", show_default=True
 )
+@click.option("-l", "--label", help="Label expression [default: --grid_column]")
 @click.option("-D", "--descr", help="Dataset description")
 @click.option("-s", "--srid", help="Input projection [default: shape's projection]")
 @click.option("-e", "--encoding", help="Input encoding [default: shape's encoding]")
@@ -137,7 +138,8 @@ def import_shapes(
     shape: pathlib.Path,
     table: Optional[str],
     format: str,
-    label: str,
+    grid_column: str,
+    label: Optional[str],
     descr: Optional[str],
     srid: Optional[str],
     encoding: Optional[str],
@@ -239,6 +241,15 @@ def import_shapes(
                 if a.lower() != "deletionflag"
             ]
 
+            if grid_column not in [a for a, _, _, _ in fields] + [primary_key_column]:
+                raise Exception(
+                    f"Grid column attribute does not exist, "
+                    f"choose from {[a for a, _, _, _ in fields]!r}"
+                )
+
+            if label is None:
+                label = grid_column
+
             index_content = f"""\
 {version_and_time_stamp}
 
@@ -265,21 +276,21 @@ continuedataset:
 
             for c_name, c_type, c_len, _ in fields:
                 index_content += f"""\
-({c_name}) cvn {{IRIDB ({table}) ({c_name}) [ ({primary_key_column}) ]
+({c_name}) cvn {{IRIDB ({table}) ({c_name}) [ ({grid_column}) ]
     open_column_by /long_name ({c_name}) def }}defasvarsilentnoreuse
 """
 
             index_content += f"""\
 
-/the_geom {{IRIDB ({table}) ({geom_column if tolerance is None else coarse_geom_column}) [ ({primary_key_column}) ]
+/the_geom {{IRIDB ({table}) ({geom_column if tolerance is None else coarse_geom_column}) [ ({grid_column}) ]
     open_column_by /long_name ({geom_column}) def }}defasvarsilentnoreuse
 
-/label {{IRIDB ({table}) ({label} as label) [ ({primary_key_column}) ]
+/label {{IRIDB ({table}) ({label} as label) [ ({grid_column}) ]
     open_column_by /long_name (label) def }}defasvarsilentnoreuse
 
 :dataset
 
-label .{primary_key_column} name exch def
+label .{grid_column} name exch def
 \\end{{ingrid}}
 """
 
@@ -474,8 +485,6 @@ def export_shapes(
 
         if table_or_query is None:
             table_or_query = shape.stem
-
-        primary_key_column = "gid"
 
         if geom_column is None:
             geom_column = "coarse_geom" if coarse_flag else "the_geom"
