@@ -363,7 +363,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
 
             run_cmd(
                 f"psql -1 -h '{escq(host)}' -p {port} -d '{escq(dbname)}' "
-                f"-U '{escq(username)}' < {shape_sql} >> '{shape_log}' 2>&1"
+                f"-U '{escq(username)}' < '{shape_sql}' >> '{shape_log}' 2>&1"
             )
 
     except Exception as e:
