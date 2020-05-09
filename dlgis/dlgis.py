@@ -290,7 +290,7 @@ continuedataset:
 
 :dataset
 
-label .{grid_column} name exch def
+label ({grid_column}) cvn cvx exec exch pop name exch def
 \\end{{ingrid}}
 """
 
