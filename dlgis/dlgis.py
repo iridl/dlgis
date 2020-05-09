@@ -25,6 +25,7 @@ import os
 import traceback
 import pathlib
 import zipfile
+import subprocess
 from glob import iglob
 from datetime import datetime
 from datetime import timezone
@@ -38,12 +39,9 @@ def logg(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def run_cmd(cmd: str, raise_excpt: bool = True) -> int:
+def run_cmd(cmd: str) -> None:
     # logg(f"run_cmd: {cmd!r}")
-    ret = os.system(cmd) >> 8
-    if ret != 0 and raise_excpt:
-        raise Exception(f"Command {cmd!r} returned {ret}.")
-    return ret
+    subprocess.check_call(cmd, shell=True)
 
 
 def escq(s: str, qs: str = "'", es: str = "\\'") -> str:
