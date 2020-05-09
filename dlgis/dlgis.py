@@ -18,7 +18,7 @@
 # CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 # OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-from typing import Dict, Optional
+from typing import Dict, Optional, Final
 import sys
 import io
 import os
@@ -33,6 +33,12 @@ import click
 import shapefile
 from osgeo import osr
 from dlgis.__about__ import version
+
+
+SRID_TO: Final = "4326"
+PRIMARY_KEY_COLUMN: Final = "gid"
+GEOM_COLUMN: Final = "the_geom"
+COARSE_GEOM_COLUMN: Final = "coarse_geom"
 
 
 def logg(*args, **kwargs):
@@ -183,11 +189,6 @@ def import_shapes(
         if table is None:
             table = shape.stem
 
-        srid_to = "4326"
-        primary_key_column = "gid"
-        geom_column = "the_geom"
-        coarse_geom_column = "coarse_geom"
-
         shape_shp = shape.with_suffix(".shp")
         shape_prj = shape.with_suffix(".prj")
 
@@ -239,7 +240,7 @@ def import_shapes(
                 if a.lower() != "deletionflag"
             ]
 
-            if grid_column not in [a for a, _, _, _ in fields] + [primary_key_column]:
+            if grid_column not in [a for a, _, _, _ in fields] + [PRIMARY_KEY_COLUMN]:
                 raise Exception(
                     f"Grid column attribute does not exist, "
                     f"choose from {[a for a, _, _, _ in fields]!r}"
@@ -251,15 +252,15 @@ def import_shapes(
             index_content = f"""\
 {version_and_time_stamp}
 
-Table: {table}
+Table: {table!r}
 No. of shapes: {len(sf)}
-Shape type: {sf.shapeTypeName} ({sf.shapeType})
-Original encoding: {encoding_from}
-Original projection: {srid_from}
-Bbox: {sf.bbox}
-Mbox: {sf.mbox}
-Zbox: {sf.zbox}
-Fields: {fields}
+Shape type: {sf.shapeTypeName!r} /{sf.shapeType!r}
+Original encoding: {encoding_from!r}
+Original projection: {srid_from!r}
+Bbox: {sf.bbox!r}
+Mbox: {sf.mbox!r}
+Zbox: {sf.zbox!r}
+Fields: {fields!r}
 
 \\begin{{ingrid}}
 continuedataset:
@@ -280,8 +281,8 @@ continuedataset:
 
             index_content += f"""\
 
-/the_geom {{IRIDB ({table}) ({geom_column if tolerance is None else coarse_geom_column}) [ ({grid_column}) ]
-    open_column_by /long_name ({geom_column}) def }}defasvarsilentnoreuse
+/the_geom {{IRIDB ({table}) ({GEOM_COLUMN if tolerance is None else COARSE_GEOM_COLUMN}) [ ({grid_column}) ]
+    open_column_by /long_name ({GEOM_COLUMN}) def }}defasvarsilentnoreuse
 
 /label {{IRIDB ({table}) ({label} as label) [ ({grid_column}) ]
     open_column_by /long_name (label) def }}defasvarsilentnoreuse
@@ -307,32 +308,32 @@ label ({grid_column}) cvn cvx exec exch pop name exch def
 
         shp2pgsql_mode = "-d" if drop_flag else "-c"
         run_cmd(
-            f"shp2pgsql -s '{escq(srid_from)}:{escq(srid_to)}' -W '{escq(encoding_from)}' "
-            f"{shp2pgsql_mode} -I -e -g '{geom_column}' '{shape_shp}' "
+            f"shp2pgsql -s '{escq(srid_from)}:{SRID_TO}' -W '{escq(encoding_from)}' "
+            f"{shp2pgsql_mode} -I -e -g '{GEOM_COLUMN}' '{shape_shp}' "
             f"'{escq(table)}' >> '{shape_sql}' 2>> '{shape_log}'"
         )
 
         if tolerance is not None:
             run_cmd(
                 f"grep AddGeometryColumn '{shape_sql}' | "
-                f"sed '1,$s/{geom_column}/{coarse_geom_column}/' "
+                f"sed '1,$s/{GEOM_COLUMN}/{COARSE_GEOM_COLUMN}/' "
                 f">> '{shape_sql}' 2>> '{shape_log}'"
             )
 
             with open(shape_sql, "a") as f:
                 f.write(
                     f"""\
-UPDATE "{escq(table, qs='"', es='""')}" set {coarse_geom_column} =
-    ST_Multi(ST_SimplifyPreserveTopology({geom_column},{tolerance}));
-CREATE INDEX ON "{escq(table, qs='"', es='""')}" USING GIST ("{coarse_geom_column}");
+UPDATE "{escq(table, qs='"', es='""')}" set {COARSE_GEOM_COLUMN} =
+    ST_Multi(ST_SimplifyPreserveTopology({GEOM_COLUMN},{tolerance}));
+CREATE INDEX ON "{escq(table, qs='"', es='""')}" USING GIST ({COARSE_GEOM_COLUMN});
 ANALYZE "{escq(table, qs='"', es='""')}";
 GRANT SELECT ON "{escq(table, qs='"', es='""')}" TO PUBLIC;
 
-SELECT {primary_key_column}, ST_NPoints({geom_column}) as original_length,
-    ST_NPoints({coarse_geom_column}) as simplified_length,
-    ST_NPoints({coarse_geom_column})::real / ST_NPoints({geom_column})
+SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
+    ST_NPoints({COARSE_GEOM_COLUMN}) as simplified_length,
+    ST_NPoints({COARSE_GEOM_COLUMN})::real / ST_NPoints({GEOM_COLUMN})
     FROM "{escq(table, qs='"', es='""')}"
-    ORDER BY {primary_key_column};
+    ORDER BY {PRIMARY_KEY_COLUMN};
 """
                 )
 
@@ -485,7 +486,7 @@ def export_shapes(
             table_or_query = shape.stem
 
         if geom_column is None:
-            geom_column = "coarse_geom" if coarse_flag else "the_geom"
+            geom_column = COARSE_GEOM_COLUMN if coarse_flag else GEOM_COLUMN
 
         if output_dir is None:
             output_dir = shape.parent
@@ -519,7 +520,7 @@ def export_shapes(
 
         run_cmd(
             f"pgsql2shp -f '{output_path}' -u '{escq(username)}' "
-            f"-g '{geom_column}' -h '{escq(host)}' "
+            f"-g '{escq(geom_column)}' -h '{escq(host)}' "
             f"-p {port} '{escq(dbname)}' "
             f"'{escq(table_or_query)}' >> '{shape_log}' 2>&1"
         )
