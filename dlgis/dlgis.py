@@ -54,6 +54,21 @@ def escq(s: str, qs: str = "'", es: str = "\\'") -> str:
     return s.replace(qs, es)
 
 
+def par_chk(s: str) -> str:
+    counter = 0
+    for c in s:
+        if c == "(":
+            counter += 1
+        elif c == ")":
+            if counter != 0:
+                counter -= 1
+            else:
+                raise Exception(f"Unbalanced ')' in {s!r}")
+    if counter != 0:
+        raise Exception(f"Unbalanced {'(' * counter!r} in {s!r}")
+    return s
+
+
 def esriprj2standards(
     shapeprj_path: pathlib.Path, encoding: str
 ) -> Dict[str, Optional[str]]:
@@ -188,6 +203,7 @@ def import_shapes(
 
         if table is None:
             table = shape.stem
+        par_chk(table)
 
         shape_shp = shape.with_suffix(".shp")
         shape_prj = shape.with_suffix(".prj")
@@ -235,10 +251,12 @@ def import_shapes(
                     raise Exception("Could not obtain srid.")
 
             fields = [
-                (a.lower(), b, c, d)
+                (par_chk(a.lower()), b, c, d)
                 for a, b, c, d in sf.fields
                 if a.lower() != "deletionflag"
             ]
+
+            par_chk(grid_column)
 
             if grid_column not in [a for a, _, _, _ in fields] + [PRIMARY_KEY_COLUMN]:
                 raise Exception(
@@ -248,6 +266,7 @@ def import_shapes(
 
             if label is None:
                 label = grid_column
+            par_chk(label)
 
             index_content = f"""\
 {version_and_time_stamp}
@@ -268,6 +287,7 @@ continuedataset:
 /name ({table}) cvn def
 """
             if descr is not None:
+                par_chk(descr)
                 index_content += f"""\
 /description ({descr}) def
 """
