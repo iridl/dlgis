@@ -332,11 +332,18 @@ label ({parentheses_check(grid_column)}) cvn cvx exec exch pop name exch def
 
 """
             )
+            if drop_flag:
+                f.write(
+                    f"""\
+DROP TABLE IF EXISTS "{escape_dquote_pgsql(table)}";
+
+"""
+                    )
 
         run_shell(
             f"shp2pgsql -s '{escape_squote_shell(srid_from)}:{SRID_TO}' "
             f"-W '{escape_squote_shell(encoding_from)}' "
-            f"{'-d' if drop_flag else '-c'} -I -e -g '{GEOM_COLUMN}' "
+            f"-c -I -e -g '{GEOM_COLUMN}' "
             f"'{escape_squote_shell(shape_shp)}' '{escape_squote_shell(table)}' "
             f">> '{escape_squote_shell(shape_sql)}' "
             f"2>> '{escape_squote_shell(shape_log)}'"
