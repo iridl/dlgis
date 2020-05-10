@@ -560,16 +560,18 @@ def export_shapes(
             f"'{escape_squote_shell(table_or_query)}' >> '{shape_log}' 2>&1"
         )
 
+        shape_zip: Final[pathlib.Path] = output_path.with_suffix(".zip")
+
         if not dont_zip_flag:
-            with zipfile.ZipFile(output_path.with_suffix(".zip"), "w") as zf:
+            with zipfile.ZipFile(shape_zip, "w") as zf:
                 for path in (
                     pathlib.Path(x) for x in iglob(str(output_path.with_suffix(".*")))
                 ):
                     if path.suffix not in (".zip", ".sql", ".tex"):
                         zf.write(path, path.name)
                         path.unlink()
-        else:
-            output_path.with_suffix(".zip").unlink()
+        elif shape_zip.exists():
+            shape_zip.unlink()
 
     except Exception as e:
         exc_type, exc_value, exc_traceback = sys.exc_info()
