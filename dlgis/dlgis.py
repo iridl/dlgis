@@ -396,8 +396,8 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
 @click.command()
 @click.argument("shape", type=pathlib.Path)
 @click.option(
-    "-n",
-    "--table",
+    "-q",
+    "--query",
     "table_or_query",
     help="Table name or query [default: SHAPE's name]",
 )
