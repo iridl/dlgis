@@ -13,7 +13,7 @@ mypy --strict .
 ret_mypy=$?
 
 echo "flake8:"
-flake8 dlgis *.py
+flake8 .
 ret_flake8=$?
 
 echo "pylint:"
