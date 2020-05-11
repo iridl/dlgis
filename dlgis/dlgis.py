@@ -26,6 +26,8 @@ import traceback
 import pathlib
 import zipfile
 import subprocess
+import tempfile
+import shutil
 from glob import iglob
 from datetime import datetime
 from datetime import timezone
@@ -197,6 +199,7 @@ def import_shapes(
         \f
     """
     shape_log: Optional[pathlib.Path] = None
+    ret_code: int = 0
     try:
         if format not in ("shp"):
             raise Exception(f"Shape format {format!r} is not supported.")
@@ -212,8 +215,19 @@ def import_shapes(
         if "'" in table or '"' in table:
             raise Exception(f"Table name {table!r} must not contain quotes.")
 
-        shape_shp: Final[pathlib.Path] = shape.with_suffix(".shp")
-        shape_prj: Final[pathlib.Path] = shape.with_suffix(".prj")
+        temp_dir: Optional[pathlib.Path] = None
+        shape_path: pathlib.Path = shape.parent / shape.stem
+
+        if shape.suffix == ".zip":
+            if not shape.exists():
+                raise Exception(f"Zip archive {str(shape)!r} does not exist.")
+            temp_dir = pathlib.Path(tempfile.mkdtemp(prefix="dlgis_import-"))
+            with zipfile.ZipFile(shape, "r") as zf:
+                zf.extractall(temp_dir)
+            shape_path = temp_dir / shape.stem
+    
+        shape_shp: Final[pathlib.Path] = shape_path.with_suffix(".shp")
+        shape_prj: Final[pathlib.Path] = shape_path.with_suffix(".prj")
 
         if output_dir is None:
             output_dir = shape.parent
@@ -247,7 +261,7 @@ def import_shapes(
         with open(shape_log, "w") as f:
             f.write(f"{version_and_time_stamp}\n\n")
 
-        with shapefile.Reader(str(shape)) as sf:
+        with shapefile.Reader(str(shape_shp)) as sf:
             if encoding is not None:
                 encoding_from = encoding
             else:
@@ -403,9 +417,13 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
             logg(f"dlgis_import error: {e if not verbose else f.getvalue()}")
             if shape_log is not None:
                 logg(f"Also see {str(shape_log)!r}.")
-        return 1
+        ret_code = 1
 
-    return 0
+    finally:
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    return ret_code
 
 
 @click.command()
@@ -522,6 +540,7 @@ def export_shapes(
         \f
     """
     shape_log: Optional[pathlib.Path] = None
+    ret_code: int = 0
     try:
         if format not in ("shp"):
             raise Exception(f"Shape format {format!r} is not supported.")
@@ -597,6 +616,6 @@ def export_shapes(
             logg(f"dlgis_export error: {e if not verbose else f.getvalue()}")
             if shape_log is not None:
                 logg(f"Also see {str(shape_log)!r}.")
-        return 1
+        ret_code = 1
 
-    return 0
+    return ret_code
