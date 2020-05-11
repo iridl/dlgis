@@ -10,7 +10,4 @@ pipelines:
           - pip install mypy
           - pip install flake8
           - pip install pylint
-          - black --check .
-          - mypy --strict .
-          - flake8 .
-          - pylint dlgis *.py
+          - ./bitbucket-pipeline-1.sh
