@@ -97,6 +97,7 @@ def esriprj2standards(
 @click.option(
     "-f",
     "--format",
+    "shape_format",
     default="shp",
     type=click.Choice(["shp"], case_sensitive=False),
     help="Shape format",
@@ -438,6 +439,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
 @click.option(
     "-f",
     "--format",
+    "shape_format",
     default="shp",
     type=click.Choice(["shp"], case_sensitive=False),
     help="Output shape format",
@@ -542,7 +544,9 @@ def export_shapes(
         if output_dir is None:
             output_dir = shape.parent
 
-        output_path: Final[pathlib.Path] = output_dir / shape.stem
+        output_path: Final[pathlib.Path] = (output_dir / shape.stem).with_suffix(
+            ".shp" if dont_zip_flag else ".zip"
+        )
 
         if not overwrite_flag:
             for suffix in (".zip", ".shp", ".dbf", ".prj", ".log"):
