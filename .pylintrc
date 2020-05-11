@@ -10,5 +10,5 @@ disable=bad-continuation, invalid-name, missing-function-docstring, missing-modu
 
 [FORMAT]
 
-max-line-length=88
+max-line-length=89
 

@@ -22,12 +22,15 @@ from typing import Dict, Tuple, List, Optional, Union, Final, Any
 import sys
 import io
 import os
+import re
+import json
 import traceback
 import pathlib
 import zipfile
 import subprocess
 import tempfile
 import shutil
+import urllib.request
 from glob import iglob
 from datetime import datetime
 from datetime import timezone
@@ -48,7 +51,6 @@ def logg(*args: Any, **kwargs: Any) -> None:
 
 
 def run_shell(cmd: str) -> None:
-    # logg(f"run_shell: {cmd!r}")
     subprocess.check_call(cmd, shell=True)
 
 
@@ -253,9 +255,14 @@ def import_shapes(
             f"{datetime.now(tz=timezone.utc).isoformat(timespec='seconds')}"
         )
 
+        if tolerance is None:
+            geom_column = GEOM_COLUMN
+        else:
+            geom_column = COARSE_GEOM_COLUMN
+
         logg(
             f"dlgis_import: importing {str(shape)!r} into "
-            f"{table!r}{'@'+dbname if dbname is not None else ''}, "
+            f"{table!r} : {geom_column!r} @ {dbname!r}, "
             f"SQL={str(shape_sql)!r}, TEX={str(shape_tex)!r}, "
             f"LOG={str(shape_log)!r}"
         )
@@ -329,8 +336,7 @@ continuedataset:
 
             index_content += f"""\
 
-/the_geom {{IRIDB ({parentheses_check(table)}) \
-({GEOM_COLUMN if tolerance is None else COARSE_GEOM_COLUMN}) \
+/the_geom {{IRIDB ({parentheses_check(table)}) ({geom_column}) \
 [ ({parentheses_check(grid_column)}) ]
     open_column_by /long_name ({GEOM_COLUMN}) def }}defasvarsilentnoreuse
 
@@ -434,7 +440,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
     "-q",
     "--query",
     "table_or_query",
-    help="Table name or query [default: SHAPE's name]",
+    help="Table name or query or DL url [default: SHAPE's name]",
 )
 @click.option(
     "-f",
@@ -537,6 +543,33 @@ def export_shapes(
 
         if table_or_query is None:
             table_or_query = shape.stem
+        elif re.match(r"^https?://", table_or_query) is not None:
+            url: str = table_or_query
+            if re.match(r"^.*the_geom/?$", url) is None:
+                if url[-1] != "/":
+                    url += "/"
+                url += ".the_geom"
+            QUERY_SUFFIX: Final[str] = (
+                "//myprocds/get//myproc/get//json//mimesuffix/WWWinfo"
+                "/!/mimeheader/%7B%7D/jsonprint/print/stop"
+            )
+            url += QUERY_SUFFIX
+            with urllib.request.urlopen(url) as f:
+                data = json.loads(f.read().decode(f.info().get_content_charset()))
+                if (
+                    isinstance(data, list)
+                    and len(data) > 2
+                    and isinstance(data[1], str)
+                    and isinstance(data[2], str)
+                ):
+                    table_or_query = data[1]
+                    if geom_column is None and not coarse_flag:
+                        geom_column = data[2]
+                else:
+                    raise Exception(
+                        f"The result {data!r} retrieved from {table_or_query!r} "
+                        f"cannot be used to determine the table and the column names."
+                    )
 
         if geom_column is None:
             geom_column = COARSE_GEOM_COLUMN if coarse_flag else GEOM_COLUMN
@@ -564,8 +597,8 @@ def export_shapes(
         )
 
         logg(
-            f"dlgis_export: exporting {table_or_query!r}@{dbname!r} "
-            f"to {str(output_path)!r}"
+            f"dlgis_export: exporting {table_or_query!r} : {geom_column!r} "
+            f"@ {dbname!r} to {str(output_path)!r}"
         )
 
         with open(shape_log, "w") as f:
