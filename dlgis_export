@@ -4,6 +4,4 @@
 import sys
 from dlgis.dlgis import export_shapes
 
-
-if __name__ == "__main__":
-    sys.exit(export_shapes())
+sys.exit(export_shapes())  # pylint: disable=no-value-for-parameter

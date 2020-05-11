@@ -1,36 +1,24 @@
 #!/bin/bash
+file_list="dlgis *.py"
 
-function ret {
-    return $1
+echo_result() {
+    [[ "$1" -eq 0 ]] && echo "$2: SUCCESS" || echo "$2: FAILURE"
 }
 
-echo "black:"
-black --check .
-ret_black=$?
+ret_code=0
+run_command() {
+    echo "Running: '$@'"
+    $@
+    local rc=$?
+    [[ $rc -ne 0 ]] && ret_code=1
+    echo_result $rc Result
+}
 
-echo "mypy:"
-mypy --strict .
-ret_mypy=$?
+run_command black --check $file_list
+run_command mypy --strict $file_list
+run_command flake8 $file_list
+run_command pylint $file_list
 
-echo "flake8:"
-flake8 .
-ret_flake8=$?
-
-echo "pylint:"
-pylint dlgis *.py
-ret_pylint=$?
-
-ret $ret_black &&\
-ret $ret_mypy &&\
-ret $ret_flake8 &&\
-ret $ret_pylint
-ret_code=$?
-
-echo "result:"
-if [ $ret_code -eq 0 ]; then
-    echo "SUCCESS"
-else
-    echo "FAILURE"
-fi
+echo_result $ret_code "Overall Result"
 
 exit $ret_code
