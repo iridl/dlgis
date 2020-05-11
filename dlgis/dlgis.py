@@ -18,7 +18,7 @@
 # CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 # OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-from typing import Dict, Tuple, List, Optional, Union, Final
+from typing import Dict, Tuple, List, Optional, Union, Final, Any
 import sys
 import io
 import os
@@ -32,8 +32,8 @@ from glob import iglob
 from datetime import datetime
 from datetime import timezone
 import click
-import shapefile
-from osgeo import osr
+import shapefile  # type: ignore
+from osgeo import osr  # type: ignore
 from dlgis.__about__ import version
 
 
@@ -43,7 +43,7 @@ GEOM_COLUMN: Final[str] = "the_geom"
 COARSE_GEOM_COLUMN: Final[str] = "coarse_geom"
 
 
-def logg(*args, **kwargs):
+def logg(*args: Any, **kwargs: Any) -> None:
     print(*args, file=sys.stderr, **kwargs)
 
 
@@ -188,12 +188,12 @@ def import_shapes(
         Catalog Entry. If `--dbname` is provided, SHAPE.sql will be applied to the
         database. Currently only ESRI SHP format is supported (see `--format`). The
         SHAPE projection and character encoding are determined automatically. If the
-        program fails to determine these parameters correctly, they can be overriden by 
-        `--srid` and `--encoding`. 
+        program fails to determine these parameters correctly, they can be overriden by
+        `--srid` and `--encoding`.
 
         \b
         SHAPE - Path to input shape file
-        
+
         Example: dlgis_import -d iridb -w -D "Zambia Admin Level 2 (humdata.org)"
         -l "adm0_en||'/'||adm1_en||'/'||adm2_en" shapes/zmb_admbnda_adm2_2020
         \f
@@ -225,7 +225,7 @@ def import_shapes(
             with zipfile.ZipFile(shape, "r") as zf:
                 zf.extractall(temp_dir)
             shape_path = temp_dir / shape.stem
-    
+
         shape_shp: Final[pathlib.Path] = shape_path.with_suffix(".shp")
         shape_prj: Final[pathlib.Path] = shape_path.with_suffix(".prj")
 
@@ -531,11 +531,11 @@ def export_shapes(
     verbose: bool,
 ) -> int:
     """ Exports a set of shapes from a Postgres table in Data Library format into
-        SHAPE files. 
+        SHAPE files.
 
         \b
         SHAPE - Path to output shape files
-        
+
         Example: dlgis_export -d iridb -w shapes/zmb_admbnda_adm2_2020
         \f
     """
@@ -576,7 +576,8 @@ def export_shapes(
         )
 
         logg(
-            f"dlgis_export: exporting {table_or_query!r}@{dbname!r} to {str(output_path)!r}"
+            f"dlgis_export: exporting {table_or_query!r}@{dbname!r} "
+            f"to {str(output_path)!r}"
         )
 
         with open(shape_log, "w") as f:

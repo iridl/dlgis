@@ -1,0 +1,14 @@
+image: python:3.8.2
+
+pipelines:
+  default:
+    - step:
+        caches:
+          - pip
+        script:
+          - pip install black
+          - pip install mypy
+          - pip install flake8
+          - black --check .
+          - mypy --strict .
+          - flake8 --max-line-length 88 .

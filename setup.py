@@ -1,8 +1,9 @@
 """ dlgis package configuration
 """
-import setuptools
+from typing import Any, Dict
+import setuptools  # type: ignore
 
-about = {}
+about: Dict[Any, Any] = {}
 with open("dlgis/__about__.py") as f:
     exec(f.read(), about)
 
