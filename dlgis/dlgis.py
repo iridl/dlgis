@@ -101,6 +101,7 @@ def esriprj2standards(
     type=click.Choice(["shp"], case_sensitive=False),
     help="Shape format",
     show_default=True,
+    hidden=True,
 )
 @click.option(
     "-G", "--grid_column", default="gid", help="Grid column", show_default=True
@@ -162,7 +163,7 @@ def esriprj2standards(
 def import_shapes(
     shape: pathlib.Path,
     table: Optional[str],
-    format: str,
+    shape_format: str,
     grid_column: str,
     label: Optional[str],
     descr: Optional[str],
@@ -201,8 +202,8 @@ def import_shapes(
     shape_log: Optional[pathlib.Path] = None
     ret_code: int = 0
     try:
-        if format not in ("shp"):
-            raise Exception(f"Shape format {format!r} is not supported.")
+        if shape_format != "shp":
+            raise Exception(f"Shape format {shape_format!r} is not supported.")
 
         password = os.environ.get("PGPASSWORD")
         if password is None and dbname is not None and prompt_password:
@@ -318,7 +319,7 @@ continuedataset:
 """
             index_content += "\n"
 
-            for c_name, c_type, c_len, _ in fields:
+            for c_name, _, _, _ in fields:
                 index_content += f"""\
 ({parentheses_check(c_name)}) cvn {{IRIDB ({parentheses_check(table)}) \
 ({parentheses_check(c_name)}) [ ({parentheses_check(grid_column)}) ]
@@ -441,21 +442,6 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
     type=click.Choice(["shp"], case_sensitive=False),
     help="Output shape format",
     show_default=True,
-)
-@click.option(
-    "-s",
-    "--srid",
-    default="4326",
-    help="Output projection",
-    show_default=True,
-    hidden=True,
-)
-@click.option(
-    "-e",
-    "--encoding",
-    default="utf-8",
-    help="Output encoding",
-    show_default=True,
     hidden=True,
 )
 @click.option(
@@ -515,9 +501,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
 def export_shapes(
     shape: pathlib.Path,
     table_or_query: Optional[str],
-    format: str,
-    srid: str,
-    encoding: str,
+    shape_format: str,
     overwrite_flag: bool,
     coarse_flag: bool,
     geom_column: Optional[str],
@@ -542,8 +526,8 @@ def export_shapes(
     shape_log: Optional[pathlib.Path] = None
     ret_code: int = 0
     try:
-        if format not in ("shp"):
-            raise Exception(f"Shape format {format!r} is not supported.")
+        if shape_format != "shp":
+            raise Exception(f"Shape format {shape_format!r} is not supported.")
 
         password = os.environ.get("PGPASSWORD")
         if password is None and prompt_password:
