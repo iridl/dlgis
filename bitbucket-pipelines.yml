@@ -1,13 +1,21 @@
-image: python:3.8.2
 
 pipelines:
   default:
     - step:
-        caches:
-          - pip
+        name: Tests
+        image: iridl/dlgis_env:latest
+        services:
+          - postgres
         script:
-          - pip install black
-          - pip install mypy
-          - pip install flake8
-          - pip install pylint
           - ./bitbucket-pipeline-1.sh
+          - pip install .
+          - dlgis_import --help
+          - dlgis_export --help
+          - PGPASSWORD=postgres psql -U postgres -d postgres -h localhost -c 'select version();'
+
+definitions:
+  services:
+    postgres:
+      image: postgres:latest
+      environment:
+        POSTGRES_PASSWORD: postgres
