@@ -215,6 +215,8 @@ def import_shapes(
         if table is None:
             table = shape.stem
 
+        table = table.lower()
+
         # shp2pgsql does not support table names with quotes
         if "'" in table or '"' in table:
             raise Exception(f"Table name {table!r} must not contain quotes.")
@@ -404,7 +406,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length,
 """
                 )
         else:
-             with open(shape_sql, "a") as f:
+            with open(shape_sql, "a") as f:
                 f.write(
                     f"""\
 GRANT SELECT ON "{escape_dquote_pgsql(table)}" TO PUBLIC;
@@ -413,7 +415,7 @@ SELECT {PRIMARY_KEY_COLUMN}, ST_NPoints({GEOM_COLUMN}) as original_length
     FROM "{escape_dquote_pgsql(table)}"
     ORDER BY {PRIMARY_KEY_COLUMN};
 """
-                )           
+                )
 
         if dbname is not None:
             if password is not None:
