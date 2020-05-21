@@ -1,0 +1,13 @@
+image: python:3.8.2
+
+pipelines:
+  default:
+    - step:
+        caches:
+          - pip
+        script:
+          - pip install black
+          - pip install mypy
+          - pip install flake8
+          - pip install pylint
+          - ./bitbucket-pipeline-1.sh

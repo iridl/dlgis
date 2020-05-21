@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+""" Imports shapes into Data Library GIS dataset
+"""
+import sys
+from dlgis.dlgis import import_shapes
+
+sys.exit(import_shapes())  # pylint: disable=no-value-for-parameter

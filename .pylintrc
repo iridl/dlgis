@@ -1,0 +1,14 @@
+[MASTER]
+  
+fail-under=8
+
+
+[MESSAGES CONTROL]
+
+disable=bad-continuation, invalid-name, missing-function-docstring, missing-module-docstring
+
+
+[FORMAT]
+
+max-line-length=89
+
